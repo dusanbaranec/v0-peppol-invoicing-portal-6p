@@ -37,9 +37,28 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: If you remove getUser() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
-  const {
+  let {
     data: { user },
   } = await supabase.auth.getUser()
+
+  // Local-only convenience: silently sign in a fixed Supabase user so the
+  // login screen is skipped. Never active in production / on Vercel.
+  const devAutoLogin =
+    process.env.NODE_ENV === 'development' &&
+    process.env.DEV_AUTO_LOGIN === 'true' &&
+    !process.env.VERCEL
+
+  if (!user && devAutoLogin) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: process.env.DEV_USER_EMAIL!,
+      password: process.env.DEV_USER_PASSWORD!,
+    })
+    if (error) {
+      console.error('[dev-auto-login] failed:', error.message)
+    } else {
+      user = data.user
+    }
+  }
 
   const protectedPaths = ['/dashboard', '/profile', '/invoices']
   const isProtected = protectedPaths.some((path) =>
